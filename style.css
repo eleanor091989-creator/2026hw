@@ -477,3 +477,65 @@ font-size: 20px;
 padding: 42px 22px;
 }
 }
+
+.inner-page {
+  padding-top: 90px;
+}
+
+.page-panel {
+  margin-top: 40px;
+}
+
+.page-toolbar {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.table-card {
+  background: #ffffff;
+  border: 1px solid #e7e5e4;
+  border-radius: 28px;
+  padding: 20px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.04);
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.data-table th,
+.data-table td {
+  padding: 16px 14px;
+  text-align: left;
+  border-bottom: 1px solid #eee7da;
+  font-size: 15px;
+}
+
+.data-table th {
+  color: #374151;
+  background: #faf7f2;
+  font-weight: 700;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.status-badge.active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge.pending {
+  background: #fef3c7;
+  color: #92400e;
+}
