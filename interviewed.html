@@ -6,7 +6,7 @@
   <title>已面談｜履歷關鍵字整合推薦系統</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body data-page="已面談｜履歷關鍵字整合推薦系統">
   <header class="site-header">
     <div class="container header-inner">
       <div class="brand">
@@ -19,64 +19,78 @@
 
       <nav class="nav">
         <a href="index.html">首頁</a>
-        <a href="jd.html">職缺 JD</a>
-        <a href="resume.html">履歷</a>
-        <a href="interviewed.html">已面談</a>
-        <a href="not-interviewed.html">未面談</a>
+        <a href="jd.html" data-nav="jd">職缺 JD</a>
+        <a href="resume.html" data-nav="resume">履歷</a>
+        <a href="interviewed.html" data-nav="interviewed">已面談</a>
+        <a href="not-interviewed.html" data-nav="not-interviewed">未面談</a>
       </nav>
     </div>
   </header>
 
-  <main class="inner-page">
-    <section class="section">
-      <div class="container">
-        <div class="section-heading">
-          <p class="section-tag">INTERVIEWED</p>
-          <h2>已面談</h2>
-          <p>管理已完成面談之候選人，方便後續評估與錄用追蹤。</p>
+  <main class="backend-main">
+    <div class="container backend-layout">
+      <aside class="backend-sidebar">
+        <div class="sidebar-card">
+          <p class="section-tag">HR BACK OFFICE</p>
+          <h2>招募管理後台</h2>
+          <p>集中管理職缺、履歷與面談進度，支援本機新增、編輯、刪除。</p>
         </div>
 
-        <div class="page-panel">
+        <div class="sidebar-links">
+          <a href="jd.html" data-nav="jd">職缺 JD 管理</a>
+          <a href="resume.html" data-nav="resume">履歷管理</a>
+          <a href="interviewed.html" data-nav="interviewed">已面談管理</a>
+          <a href="not-interviewed.html" data-nav="not-interviewed">未面談管理</a>
+        </div>
+      </aside>
+
+      <section class="backend-content">
+        <div class="page-header">
+          <div>
+            <p class="section-tag" id="pageTag"></p>
+            <h2 id="pageTitle"></h2>
+            <p class="page-desc" id="pageDescription"></p>
+          </div>
+          <button class="btn btn-primary" id="addRecordBtn" type="button">新增資料</button>
+        </div>
+
+        <div class="stats-grid" id="statsGrid"></div>
+
+        <div class="panel">
+          <div class="panel-toolbar">
+            <input class="panel-input" id="searchInput" type="text" placeholder="搜尋資料" />
+            <select class="panel-select" id="statusFilter"></select>
+          </div>
+
           <div class="table-card">
             <table class="data-table">
-              <thead>
-                <tr>
-                  <th>姓名</th>
-                  <th>應徵職缺</th>
-                  <th>面談日期</th>
-                  <th>評估結果</th>
-                  <th>下一步</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>張雅婷</td>
-                  <td>招募專員</td>
-                  <td>2026/04/10</td>
-                  <td>表現佳</td>
-                  <td><span class="status-badge active">安排複試</span></td>
-                </tr>
-                <tr>
-                  <td>李承恩</td>
-                  <td>教育訓練專員</td>
-                  <td>2026/04/09</td>
-                  <td>待主管確認</td>
-                  <td><span class="status-badge pending">待回覆</span></td>
-                </tr>
-                <tr>
-                  <td>黃詠心</td>
-                  <td>薪酬福利管理師</td>
-                  <td>2026/04/08</td>
-                  <td>符合需求</td>
-                  <td><span class="status-badge active">準備錄用</span></td>
-                </tr>
-              </tbody>
+              <thead id="tableHead"></thead>
+              <tbody id="tableBody"></tbody>
             </table>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   </main>
+
+  <div class="modal-overlay hidden" id="modalOverlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <p class="section-tag" id="modalTag"></p>
+          <h3 id="modalTitle">新增資料</h3>
+        </div>
+        <button class="icon-btn" id="closeModalBtn" type="button">×</button>
+      </div>
+
+      <form id="recordForm" class="form-grid"></form>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="cancelModalBtn" type="button">取消</button>
+        <button class="btn btn-primary" id="saveRecordBtn" type="submit" form="recordForm">儲存</button>
+      </div>
+    </div>
+  </div>
 
   <footer class="site-footer">
     <div class="container footer-inner">
@@ -85,5 +99,7 @@
       <p>如有操作問題，請聯繫人資系統管理單位</p>
     </div>
   </footer>
+
+  <script src="script.js"></script>
 </body>
 </html>
