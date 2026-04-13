@@ -1,3 +1,21 @@
+import { auth, db } from "./firebase-config.js";
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut
+} from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
+import {
+  collection,
+  addDoc,
+  doc,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+  serverTimestamp,
+  getDocs
+} from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+
 const APP_CONFIG = {
   jd: {
     pageTag: "JOB DESCRIPTION",
@@ -6,7 +24,6 @@ const APP_CONFIG = {
     addLabel: "新增職缺",
     searchPlaceholder: "搜尋職缺名稱、部門、關鍵字",
     filterLabel: "全部狀態",
-    storageKey: "hr_admin_jd",
     statusOptions: ["進行中", "待更新", "已結束"],
     columns: [
       { key: "jobTitle", label: "職缺名稱" },
@@ -23,9 +40,9 @@ const APP_CONFIG = {
       { name: "status", label: "狀態", type: "select", options: ["進行中", "待更新", "已結束"], required: true }
     ],
     defaults: [
-      { id: "jd-1", jobTitle: "招募專員", department: "人資部", experience: "2 年以上", keywords: "面談、招募、履歷篩選", status: "進行中" },
-      { id: "jd-2", jobTitle: "教育訓練專員", department: "人資部", experience: "1 年以上", keywords: "培訓、課程規劃、內訓", status: "待更新" },
-      { id: "jd-3", jobTitle: "薪酬福利管理師", department: "人資部", experience: "3 年以上", keywords: "薪資、保險、勞基法", status: "進行中" }
+      { jobTitle: "招募專員", department: "人資部", experience: "2 年以上", keywords: "面談、招募、履歷篩選", status: "進行中" },
+      { jobTitle: "教育訓練專員", department: "人資部", experience: "1 年以上", keywords: "培訓、課程規劃、內訓", status: "待更新" },
+      { jobTitle: "薪酬福利管理師", department: "人資部", experience: "3 年以上", keywords: "薪資、保險、勞基法", status: "進行中" }
     ],
     stats(records) {
       return [
@@ -42,7 +59,6 @@ const APP_CONFIG = {
     addLabel: "新增履歷",
     searchPlaceholder: "搜尋姓名、應徵職缺、狀態",
     filterLabel: "全部狀態",
-    storageKey: "hr_admin_resume",
     statusOptions: ["已完成初篩", "待安排面談", "已進入複試", "已淘汰"],
     columns: [
       { key: "name", label: "姓名" },
@@ -59,9 +75,9 @@ const APP_CONFIG = {
       { name: "status", label: "目前狀態", type: "select", options: ["已完成初篩", "待安排面談", "已進入複試", "已淘汰"], required: true }
     ],
     defaults: [
-      { id: "resume-1", name: "王小雅", role: "招募專員", match: "88%", experience: "3 年", status: "已完成初篩" },
-      { id: "resume-2", name: "林子晴", role: "教育訓練專員", match: "81%", experience: "2 年", status: "待安排面談" },
-      { id: "resume-3", name: "陳冠宇", role: "薪酬福利管理師", match: "76%", experience: "4 年", status: "已進入複試" }
+      { name: "王小雅", role: "招募專員", match: "88%", experience: "3 年", status: "已完成初篩" },
+      { name: "林子晴", role: "教育訓練專員", match: "81%", experience: "2 年", status: "待安排面談" },
+      { name: "陳冠宇", role: "薪酬福利管理師", match: "76%", experience: "4 年", status: "已進入複試" }
     ],
     stats(records) {
       return [
@@ -78,7 +94,6 @@ const APP_CONFIG = {
     addLabel: "新增面談紀錄",
     searchPlaceholder: "搜尋姓名、職缺、結果",
     filterLabel: "全部狀態",
-    storageKey: "hr_admin_interviewed",
     statusOptions: ["安排複試", "待回覆", "準備錄用"],
     columns: [
       { key: "name", label: "姓名" },
@@ -95,9 +110,9 @@ const APP_CONFIG = {
       { name: "status", label: "下一步", type: "select", options: ["安排複試", "待回覆", "準備錄用"], required: true }
     ],
     defaults: [
-      { id: "interviewed-1", name: "張雅婷", role: "招募專員", date: "2026/04/10", result: "表現佳", status: "安排複試" },
-      { id: "interviewed-2", name: "李承恩", role: "教育訓練專員", date: "2026/04/09", result: "待主管確認", status: "待回覆" },
-      { id: "interviewed-3", name: "黃詠心", role: "薪酬福利管理師", date: "2026/04/08", result: "符合需求", status: "準備錄用" }
+      { name: "張雅婷", role: "招募專員", date: "2026/04/10", result: "表現佳", status: "安排複試" },
+      { name: "李承恩", role: "教育訓練專員", date: "2026/04/09", result: "待主管確認", status: "待回覆" },
+      { name: "黃詠心", role: "薪酬福利管理師", date: "2026/04/08", result: "符合需求", status: "準備錄用" }
     ],
     stats(records) {
       return [
@@ -114,7 +129,6 @@ const APP_CONFIG = {
     addLabel: "新增待面談名單",
     searchPlaceholder: "搜尋姓名、職缺、備註",
     filterLabel: "全部狀態",
-    storageKey: "hr_admin_not_interviewed",
     statusOptions: ["待通知", "待主管確認", "待聯繫"],
     columns: [
       { key: "name", label: "姓名" },
@@ -131,9 +145,9 @@ const APP_CONFIG = {
       { name: "note", label: "備註", type: "textarea", full: true }
     ],
     defaults: [
-      { id: "not-interviewed-1", name: "吳佩蓉", role: "招募專員", match: "84%", status: "待通知", note: "可安排本週面談" },
-      { id: "not-interviewed-2", name: "周彥廷", role: "教育訓練專員", match: "79%", status: "待主管確認", note: "需補作品集" },
-      { id: "not-interviewed-3", name: "蔡宜庭", role: "薪酬福利管理師", match: "82%", status: "待聯繫", note: "可下週安排" }
+      { name: "吳佩蓉", role: "招募專員", match: "84%", status: "待通知", note: "可安排本週面談" },
+      { name: "周彥廷", role: "教育訓練專員", match: "79%", status: "待主管確認", note: "需補作品集" },
+      { name: "蔡宜庭", role: "薪酬福利管理師", match: "82%", status: "待聯繫", note: "可下週安排" }
     ],
     stats(records) {
       return [
@@ -145,16 +159,502 @@ const APP_CONFIG = {
   }
 };
 
-document.addEventListener("DOMContentLoaded", () => {
-  setupHomeInteractions();
+const pageKey = document.body.dataset.page;
+const config = APP_CONFIG[pageKey];
 
-  const pageKey = document.body.dataset.page;
-  highlightActiveNav(pageKey);
+let allRecords = [];
+let editingId = null;
+let unsubscribeRecords = null;
 
-  if (!APP_CONFIG[pageKey]) return;
+injectExtraStyles();
+setupHomeInteractions();
+highlightActiveNav(pageKey);
 
-  const config = APP_CONFIG[pageKey];
-  ensureSeedData(config);
+if (config) {
+  initBackendPage();
+}
+
+function injectExtraStyles() {
+  const style = document.createElement("style");
+  style.textContent = `
+    a.btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    body.modal-open {
+      overflow: hidden;
+    }
+
+    .nav a.is-active {
+      color: #b7791f;
+    }
+
+    .nav a.is-active::after {
+      width: 100%;
+    }
+
+    .session-bar {
+      width: min(1120px, calc(100% - 32px));
+      margin: 96px auto 0;
+      background: #ffffff;
+      border: 1px solid #e7e5e4;
+      border-radius: 22px;
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.04);
+    }
+
+    .session-user {
+      font-size: 14px;
+      color: #374151;
+      word-break: break-all;
+    }
+
+    .backend-main {
+      min-height: calc(100vh - 140px);
+      padding: 24px 0 40px;
+      background: #f7f5f1;
+    }
+
+    .backend-layout {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 24px;
+      align-items: start;
+      margin-top: 24px;
+    }
+
+    .backend-sidebar {
+      position: sticky;
+      top: 24px;
+    }
+
+    .sidebar-card {
+      background: #111827;
+      color: #ffffff;
+      border-radius: 30px;
+      padding: 28px;
+      box-shadow: 0 12px 28px rgba(17, 24, 39, 0.14);
+    }
+
+    .sidebar-card h2 {
+      margin: 12px 0 0;
+      font-size: 28px;
+      line-height: 1.25;
+    }
+
+    .sidebar-card p:not(.section-tag) {
+      margin: 12px 0 0;
+      color: rgba(255, 255, 255, 0.75);
+    }
+
+    .sidebar-links {
+      margin-top: 18px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .sidebar-links a {
+      display: block;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: #ffffff;
+      border: 1px solid #e7e5e4;
+      color: #374151;
+      font-weight: 700;
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.04);
+      transition: all 0.25s ease;
+    }
+
+    .sidebar-links a:hover,
+    .sidebar-links a.is-active {
+      color: #92400e;
+      border-color: #e0b74f;
+      background: #fff7e6;
+    }
+
+    .backend-content {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+      background: #ffffff;
+      border: 1px solid #e7e5e4;
+      border-radius: 30px;
+      padding: 28px;
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.04);
+    }
+
+    .page-header h2 {
+      margin: 12px 0 0;
+      font-size: 38px;
+      line-height: 1.15;
+      color: #0f172a;
+    }
+
+    .page-desc {
+      margin: 14px 0 0;
+      color: #4b5563;
+      line-height: 1.8;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .stat-card {
+      background: linear-gradient(135deg, #ffffff, #faf7f2);
+      border: 1px solid #e7e5e4;
+      border-radius: 24px;
+      padding: 22px;
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.04);
+    }
+
+    .stat-label {
+      margin: 0;
+      font-size: 14px;
+      color: #6b7280;
+      font-weight: 700;
+    }
+
+    .stat-value {
+      margin: 10px 0 0;
+      font-size: 32px;
+      font-weight: 800;
+      color: #111827;
+    }
+
+    .panel {
+      background: #ffffff;
+      border: 1px solid #e7e5e4;
+      border-radius: 30px;
+      padding: 24px;
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.04);
+    }
+
+    .panel-toolbar {
+      display: flex;
+      gap: 16px;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .panel-input,
+    .panel-select {
+      min-height: 48px;
+      border-radius: 16px;
+      border: 1px solid #d6d3d1;
+      background: #ffffff;
+      padding: 0 16px;
+      font-size: 15px;
+      color: #1f2937;
+    }
+
+    .panel-input {
+      width: min(360px, 100%);
+    }
+
+    .panel-select {
+      min-width: 180px;
+    }
+
+    .panel-input:focus,
+    .panel-select:focus,
+    .form-field input:focus,
+    .form-field textarea:focus,
+    .form-field select:focus,
+    .auth-input:focus {
+      outline: none;
+      border-color: #d4a017;
+      box-shadow: 0 0 0 4px rgba(212, 160, 23, 0.12);
+    }
+
+    .empty-row {
+      text-align: center !important;
+      color: #6b7280;
+      padding: 32px 16px !important;
+    }
+
+    .row-actions {
+      white-space: nowrap;
+    }
+
+    .action-btn {
+      border: none;
+      border-radius: 14px;
+      padding: 10px 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-right: 8px;
+    }
+
+    .action-btn.edit {
+      background: #f3f4f6;
+      color: #374151;
+    }
+
+    .action-btn.edit:hover {
+      background: #e5e7eb;
+    }
+
+    .action-btn.delete {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .action-btn.delete:hover {
+      background: #fecaca;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .status-badge.active {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .status-badge.pending {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .status-badge.neutral {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .modal-overlay,
+    .auth-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(15, 23, 42, 0.45);
+    }
+
+    .modal-overlay.hidden,
+    .auth-overlay.hidden {
+      display: none;
+    }
+
+    .modal-card,
+    .auth-card {
+      width: min(760px, 100%);
+      background: #ffffff;
+      border-radius: 30px;
+      padding: 28px;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+    }
+
+    .auth-card {
+      width: min(460px, 100%);
+    }
+
+    .modal-header,
+    .auth-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 22px;
+    }
+
+    .modal-header h3,
+    .auth-header h3 {
+      margin: 12px 0 0;
+      font-size: 28px;
+      color: #111827;
+    }
+
+    .icon-btn {
+      width: 42px;
+      height: 42px;
+      border: none;
+      border-radius: 14px;
+      background: #f3f4f6;
+      color: #374151;
+      font-size: 24px;
+      cursor: pointer;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .form-field {
+      display: block;
+    }
+
+    .form-field.full {
+      grid-column: 1 / -1;
+    }
+
+    .form-field span {
+      display: block;
+      margin-bottom: 8px;
+      color: #374151;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .form-field input,
+    .form-field textarea,
+    .form-field select,
+    .auth-input {
+      width: 100%;
+      border: 1px solid #d6d3d1;
+      border-radius: 16px;
+      background: #ffffff;
+      padding: 14px 16px;
+      font: inherit;
+      color: #1f2937;
+    }
+
+    .form-field textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    .modal-actions,
+    .auth-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 22px;
+      flex-wrap: wrap;
+    }
+
+    .auth-form {
+      display: grid;
+      gap: 14px;
+    }
+
+    .auth-help {
+      margin-top: 10px;
+      color: #6b7280;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .auth-error {
+      margin-top: 12px;
+      color: #b91c1c;
+      font-size: 14px;
+      min-height: 22px;
+    }
+
+    @media (max-width: 1024px) {
+      .backend-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .backend-sidebar {
+        position: static;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .session-bar {
+        margin-top: 88px;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .page-header {
+        flex-direction: column;
+      }
+
+      .page-header h2 {
+        font-size: 32px;
+      }
+
+      .panel-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .panel-input,
+      .panel-select {
+        width: 100%;
+      }
+
+      .table-card {
+        padding: 14px;
+      }
+
+      .modal-card,
+      .auth-card {
+        padding: 22px;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function setupHomeInteractions() {
+  const scrollButtons = document.querySelectorAll("[data-scroll]");
+  scrollButtons.forEach((button) => {
+    button.addEventListener("click", function () {
+      const targetSelector = button.getAttribute("data-scroll");
+      const target = document.querySelector(targetSelector);
+      if (!target) return;
+
+      const header = document.querySelector(".site-header");
+      const headerHeight = header ? header.offsetHeight : 0;
+      const targetTop = target.getBoundingClientRect().top + window.pageYOffset - headerHeight - 16;
+
+      window.scrollTo({
+        top: targetTop,
+        behavior: "smooth"
+      });
+    });
+  });
+}
+
+function highlightActiveNav(activeKey) {
+  if (!activeKey) return;
+  document.querySelectorAll(`[data-nav="${activeKey}"]`).forEach((item) => {
+    item.classList.add("is-active");
+  });
+}
+
+function initBackendPage() {
+  buildAuthOverlay();
+  buildSessionBar();
 
   const pageTag = document.getElementById("pageTag");
   const pageTitle = document.getElementById("pageTitle");
@@ -171,8 +671,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeModalBtn = document.getElementById("closeModalBtn");
   const cancelModalBtn = document.getElementById("cancelModalBtn");
   const recordForm = document.getElementById("recordForm");
-
-  let editingId = null;
 
   pageTag.textContent = config.pageTag;
   pageTitle.textContent = config.pageTitle;
@@ -195,14 +693,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (event.target === modalOverlay) closeModal();
   });
 
-  tableBody.addEventListener("click", (event) => {
+  tableBody.addEventListener("click", async (event) => {
     const actionButton = event.target.closest("[data-action]");
     if (!actionButton) return;
 
     const action = actionButton.dataset.action;
     const id = actionButton.dataset.id;
-    const records = getRecords(config);
-    const currentRecord = records.find((item) => item.id === id);
+    const currentRecord = allRecords.find((item) => item.id === id);
 
     if (action === "edit" && currentRecord) {
       openModal("edit", currentRecord);
@@ -212,45 +709,87 @@ document.addEventListener("DOMContentLoaded", () => {
       const confirmed = window.confirm(`確定要刪除「${config.pageTitle}」這筆資料嗎？`);
       if (!confirmed) return;
 
-      const nextRecords = records.filter((item) => item.id !== id);
-      saveRecords(config, nextRecords);
-      render();
+      await deleteDoc(doc(db, "hr_admin", pageKey, "records", id));
     }
   });
 
-  recordForm.addEventListener("submit", (event) => {
+  recordForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const formData = new FormData(recordForm);
-    const nextRecord = { id: editingId || String(Date.now()) };
+    const payload = {};
 
     config.fields.forEach((field) => {
-      nextRecord[field.name] = String(formData.get(field.name) || "").trim();
+      payload[field.name] = String(formData.get(field.name) || "").trim();
     });
 
-    const records = getRecords(config);
-    const nextRecords = editingId
-      ? records.map((item) => (item.id === editingId ? nextRecord : item))
-      : [nextRecord, ...records];
+    payload.updatedAt = serverTimestamp();
 
-    saveRecords(config, nextRecords);
+    if (editingId) {
+      await updateDoc(doc(db, "hr_admin", pageKey, "records", editingId), payload);
+    } else {
+      payload.createdAt = serverTimestamp();
+      await addDoc(collection(db, "hr_admin", pageKey, "records"), payload);
+    }
+
     closeModal();
-    render();
   });
 
-  render();
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      updateSessionBar(user);
+      hideAuthOverlay();
+      await seedDefaultsIfEmpty();
+      subscribeRecords();
+    } else {
+      updateSessionBar(null);
+      showAuthOverlay();
+      allRecords = [];
+      render();
+      if (unsubscribeRecords) unsubscribeRecords();
+    }
+  });
+
+  function subscribeRecords() {
+    if (unsubscribeRecords) unsubscribeRecords();
+
+    unsubscribeRecords = onSnapshot(
+      collection(db, "hr_admin", pageKey, "records"),
+      (snapshot) => {
+        allRecords = snapshot.docs.map((item) => ({
+          id: item.id,
+          ...item.data()
+        }));
+        render();
+      },
+      (error) => {
+        console.error(error);
+      }
+    );
+  }
+
+  async function seedDefaultsIfEmpty() {
+    const ref = collection(db, "hr_admin", pageKey, "records");
+    const snapshot = await getDocs(ref);
+    if (!snapshot.empty) return;
+
+    for (const item of config.defaults) {
+      await addDoc(ref, {
+        ...item,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+  }
 
   function render() {
-    const allRecords = getRecords(config);
     const keyword = searchInput.value.trim().toLowerCase();
     const selectedStatus = statusFilter.value;
 
     const filteredRecords = allRecords.filter((record) => {
       const matchKeyword =
         !keyword ||
-        Object.values(record).some((value) =>
-          String(value).toLowerCase().includes(keyword)
-        );
+        Object.values(record).some((value) => String(value).toLowerCase().includes(keyword));
 
       const matchStatus = !selectedStatus || record.status === selectedStatus;
       return matchKeyword && matchStatus;
@@ -274,54 +813,94 @@ document.addEventListener("DOMContentLoaded", () => {
     document.body.classList.remove("modal-open");
     editingId = null;
   }
-});
+}
 
-function setupHomeInteractions() {
-  const scrollButtons = document.querySelectorAll("[data-scroll]");
-  scrollButtons.forEach((button) => {
-    button.addEventListener("click", function () {
-      const targetSelector = button.getAttribute("data-scroll");
-      const target = document.querySelector(targetSelector);
-      if (!target) return;
+function buildAuthOverlay() {
+  const overlay = document.createElement("div");
+  overlay.className = "auth-overlay hidden";
+  overlay.id = "authOverlay";
+  overlay.innerHTML = `
+    <div class="auth-card">
+      <div class="auth-header">
+        <div>
+          <p class="section-tag">LOGIN REQUIRED</p>
+          <h3>登入 HR 共用後台</h3>
+        </div>
+      </div>
 
-      const header = document.querySelector(".site-header");
-      const headerHeight = header ? header.offsetHeight : 0;
-      const targetTop = target.getBoundingClientRect().top + window.pageYOffset - headerHeight - 16;
+      <form class="auth-form" id="authForm">
+        <input class="auth-input" id="authEmail" type="email" placeholder="請輸入 Email" required />
+        <input class="auth-input" id="authPassword" type="password" placeholder="請輸入密碼" required />
 
-      window.scrollTo({
-        top: targetTop,
-        behavior: "smooth"
-      });
-    });
+        <div class="auth-actions">
+          <button class="btn btn-secondary" type="button" id="registerBtn">註冊</button>
+          <button class="btn btn-primary" type="submit">登入</button>
+        </div>
+
+        <p class="auth-help">第一次使用可直接輸入 Email 與密碼後按「註冊」，之後再用同組帳號登入。</p>
+        <div class="auth-error" id="authError"></div>
+      </form>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const authForm = document.getElementById("authForm");
+  const authEmail = document.getElementById("authEmail");
+  const authPassword = document.getElementById("authPassword");
+  const authError = document.getElementById("authError");
+  const registerBtn = document.getElementById("registerBtn");
+
+  authForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    authError.textContent = "";
+
+    try {
+      await signInWithEmailAndPassword(auth, authEmail.value.trim(), authPassword.value.trim());
+    } catch (error) {
+      authError.textContent = translateAuthError(error);
+    }
+  });
+
+  registerBtn.addEventListener("click", async () => {
+    authError.textContent = "";
+
+    try {
+      await createUserWithEmailAndPassword(auth, authEmail.value.trim(), authPassword.value.trim());
+    } catch (error) {
+      authError.textContent = translateAuthError(error);
+    }
   });
 }
 
-function highlightActiveNav(pageKey) {
-  if (!pageKey) return;
-  document.querySelectorAll(`[data-nav="${pageKey}"]`).forEach((item) => {
-    item.classList.add("is-active");
+function buildSessionBar() {
+  const header = document.querySelector(".site-header");
+  const bar = document.createElement("div");
+  bar.className = "session-bar";
+  bar.id = "sessionBar";
+  bar.innerHTML = `
+    <div class="session-user" id="sessionUser">尚未登入</div>
+    <button class="btn btn-secondary" id="logoutBtn" type="button">登出</button>
+  `;
+  header.insertAdjacentElement("afterend", bar);
+
+  document.getElementById("logoutBtn").addEventListener("click", async () => {
+    await signOut(auth);
   });
 }
 
-function ensureSeedData(config) {
-  const existing = localStorage.getItem(config.storageKey);
-  if (!existing) {
-    localStorage.setItem(config.storageKey, JSON.stringify(config.defaults));
-  }
+function updateSessionBar(user) {
+  const sessionUser = document.getElementById("sessionUser");
+  if (!sessionUser) return;
+
+  sessionUser.textContent = user ? `目前登入：${user.email || "已登入使用者"}` : "尚未登入";
 }
 
-function getRecords(config) {
-  try {
-    const raw = localStorage.getItem(config.storageKey);
-    const parsed = JSON.parse(raw || "[]");
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    return [];
-  }
+function showAuthOverlay() {
+  document.getElementById("authOverlay")?.classList.remove("hidden");
 }
 
-function saveRecords(config, records) {
-  localStorage.setItem(config.storageKey, JSON.stringify(records));
+function hideAuthOverlay() {
+  document.getElementById("authOverlay")?.classList.add("hidden");
 }
 
 function buildStats(items) {
@@ -369,7 +948,6 @@ function buildBody(columns, records) {
               </td>
             `;
           }
-
           return `<td>${escapeHtml(String(value))}</td>`;
         })
         .join("");
@@ -436,6 +1014,19 @@ function getStatusClass(status) {
   if (activeSet.includes(status)) return "active";
   if (pendingSet.includes(status)) return "pending";
   return "neutral";
+}
+
+function translateAuthError(error) {
+  const code = error?.code || "";
+
+  if (code.includes("invalid-email")) return "Email 格式不正確";
+  if (code.includes("missing-password")) return "請輸入密碼";
+  if (code.includes("weak-password")) return "密碼至少需要 6 碼";
+  if (code.includes("email-already-in-use")) return "這個 Email 已經註冊過";
+  if (code.includes("invalid-credential")) return "帳號或密碼錯誤";
+  if (code.includes("user-not-found")) return "找不到這個帳號";
+  if (code.includes("wrong-password")) return "密碼錯誤";
+  return "操作失敗，請稍後再試一次";
 }
 
 function escapeHtml(value) {
