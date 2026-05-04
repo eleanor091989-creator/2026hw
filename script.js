@@ -1,6 +1,16 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+import {
+  getFirestore,
+  collection as fsCollection,
+  addDoc,
+  getDocs,
+  updateDoc,
+  deleteDoc,
+  doc,
+  serverTimestamp,
+  query,
+  orderBy
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCgt4XVsPxcI2XfKKdCEWxZTHgFOX2tRew",
@@ -13,7 +23,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const storage = getStorage(app);
 
 const PAGE_CONFIG = {
   jd: {
@@ -38,25 +47,29 @@ const PAGE_CONFIG = {
       { key: "status", label: "狀態", type: "select", options: ["招募中", "暫停", "已關閉"] }
     ]
   },
+
   resume: {
     tag: "RESUME",
     title: "履歷管理",
-    desc: "集中管理候選人履歷，支援上傳檔案至 Firebase Storage，供所有 HR 下載使用。",
+    desc: "集中管理候選人履歷資料。請將履歷放在 Google Drive、OneDrive 或其他雲端空間，再貼上履歷連結。",
     collection: "resumes",
     modalTag: "RESUME",
-    hasFile: true,
+    hasFile: false,
     statuses: ["已上傳", "已面談", "未面談", "不合適"],
     stats: [
       { label: "總履歷數", key: "total" },
       { label: "已上傳", key: "uploaded" },
       { label: "已面談", key: "interviewed" }
     ],
-    columns: ["檔名", "應徵職缺", "狀態", "上傳時間", "操作"],
+    columns: ["履歷名稱", "應徵職缺", "狀態", "建立時間", "操作"],
     fields: [
+      { key: "fileName", label: "履歷名稱", type: "text", required: true },
       { key: "jobTitle", label: "應徵職缺", type: "text", required: true },
+      { key: "fileURL", label: "履歷連結（Google Drive / OneDrive）", type: "text", full: true },
       { key: "status", label: "目前狀態", type: "select", options: ["已上傳", "已面談", "未面談", "不合適"] }
     ]
   },
+
   interviewed: {
     tag: "INTERVIEWED",
     title: "已面談管理",
@@ -79,6 +92,7 @@ const PAGE_CONFIG = {
       { key: "notes", label: "備註", type: "textarea", full: true }
     ]
   },
+
   "not-interviewed": {
     tag: "NOT INTERVIEWED",
     title: "未面談管理",
@@ -103,95 +117,115 @@ const PAGE_CONFIG = {
   }
 };
 
-// ─── 高亮 nav（所有頁面都執行）───────────────────────────────
 function highlightNav() {
   const page = document.body.dataset.page;
+
   document.querySelectorAll("[data-nav]").forEach(a => {
-    if (a.dataset.nav === page) a.classList.add("is-active");
+    if (a.dataset.nav === page) {
+      a.classList.add("is-active");
+    }
   });
+
   document.querySelectorAll(".sidebar-links a[data-nav]").forEach(a => {
-    if (a.dataset.nav === page) a.classList.add("is-active");
+    if (a.dataset.nav === page) {
+      a.classList.add("is-active");
+    }
   });
 }
 
 highlightNav();
 
-// ─── 後台頁面邏輯（只在有 config 的頁面執行）────────────────
 function initBackend() {
   const page = document.body.dataset.page;
   const config = PAGE_CONFIG[page];
-  if (!config) return; // index.html，不需執行
 
-  const pageTag        = document.getElementById("pageTag");
-  const pageTitle      = document.getElementById("pageTitle");
-  const pageDesc       = document.getElementById("pageDescription");
-  const statsGrid      = document.getElementById("statsGrid");
-  const tableHead      = document.getElementById("tableHead");
-  const tableBody      = document.getElementById("tableBody");
-  const searchInput    = document.getElementById("searchInput");
-  const statusFilter   = document.getElementById("statusFilter");
-  const addRecordBtn   = document.getElementById("addRecordBtn");
-  const modalOverlay   = document.getElementById("modalOverlay");
-  const modalTag       = document.getElementById("modalTag");
-  const modalTitle     = document.getElementById("modalTitle");
-  const recordForm     = document.getElementById("recordForm");
-  const closeModalBtn  = document.getElementById("closeModalBtn");
+  if (!config) return;
+
+  const pageTag = document.getElementById("pageTag");
+  const pageTitle = document.getElementById("pageTitle");
+  const pageDesc = document.getElementById("pageDescription");
+  const statsGrid = document.getElementById("statsGrid");
+  const tableHead = document.getElementById("tableHead");
+  const tableBody = document.getElementById("tableBody");
+  const searchInput = document.getElementById("searchInput");
+  const statusFilter = document.getElementById("statusFilter");
+  const addRecordBtn = document.getElementById("addRecordBtn");
+  const modalOverlay = document.getElementById("modalOverlay");
+  const modalTag = document.getElementById("modalTag");
+  const modalTitle = document.getElementById("modalTitle");
+  const recordForm = document.getElementById("recordForm");
+  const closeModalBtn = document.getElementById("closeModalBtn");
   const cancelModalBtn = document.getElementById("cancelModalBtn");
-  const saveRecordBtn  = document.getElementById("saveRecordBtn");
+  const saveRecordBtn = document.getElementById("saveRecordBtn");
 
   let allRecords = [];
-  let editingId  = null;
-  let selectedFile = null;
+  let editingId = null;
 
   function initPage() {
-    pageTag.textContent   = config.tag;
+    pageTag.textContent = config.tag;
     pageTitle.textContent = config.title;
-    pageDesc.textContent  = config.desc;
-    modalTag.textContent  = config.modalTag;
+    pageDesc.textContent = config.desc;
+    modalTag.textContent = config.modalTag;
 
     statusFilter.innerHTML = `<option value="">全部狀態</option>`;
-    config.statuses.forEach(s => {
-      statusFilter.innerHTML += `<option value="${s}">${s}</option>`;
+
+    config.statuses.forEach(status => {
+      statusFilter.innerHTML += `<option value="${status}">${status}</option>`;
     });
 
-    tableHead.innerHTML = `<tr>${config.columns.map(c => `<th>${c}</th>`).join("")}</tr>`;
+    tableHead.innerHTML = `
+      <tr>
+        ${config.columns.map(column => `<th>${column}</th>`).join("")}
+      </tr>
+    `;
   }
 
   async function loadRecords() {
     try {
-      const q = query(collection(db, config.collection), orderBy("createdAt", "desc"));
+      const q = query(
+        fsCollection(db, config.collection),
+        orderBy("createdAt", "desc")
+      );
+
       const snapshot = await getDocs(q);
-      allRecords = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      allRecords = snapshot.docs.map(item => ({
+        id: item.id,
+        ...item.data()
+      }));
+
       renderStats();
       renderTable();
-    } catch (e) {
-      console.error("載入資料失敗：", e);
+    } catch (error) {
+      console.error("載入資料失敗：", error);
+      alert("載入資料失敗：" + error.message);
     }
   }
 
   function renderStats() {
     const total = allRecords.length;
     const counts = {};
-    allRecords.forEach(r => {
-      const s = r.status || r.result || "";
-      counts[s] = (counts[s] || 0) + 1;
+
+    allRecords.forEach(record => {
+      const status = record.status || record.result || "";
+      counts[status] = (counts[status] || 0) + 1;
     });
 
     const statMap = {
       total,
-      active:      counts["招募中"] || 0,
-      closed:      counts["已關閉"] || 0,
-      uploaded:    counts["已上傳"] || 0,
+      active: counts["招募中"] || 0,
+      closed: counts["已關閉"] || 0,
+      uploaded: counts["已上傳"] || 0,
       interviewed: counts["已面談"] || 0,
-      passed:      counts["通過"] || 0,
-      pending:     counts["待定"] || counts["待聯繫"] || 0,
-      scheduled:   counts["已約時間"] || 0
+      passed: counts["通過"] || 0,
+      pending: counts["待定"] || counts["待聯繫"] || 0,
+      scheduled: counts["已約時間"] || 0
     };
 
-    statsGrid.innerHTML = config.stats.map(s => `
+    statsGrid.innerHTML = config.stats.map(stat => `
       <div class="stat-card">
-        <p class="stat-label">${s.label}</p>
-        <p class="stat-value">${statMap[s.key] ?? 0}</p>
+        <p class="stat-label">${stat.label}</p>
+        <p class="stat-value">${statMap[stat.key] ?? 0}</p>
       </div>
     `).join("");
   }
@@ -200,125 +234,176 @@ function initBackend() {
     const search = searchInput.value.toLowerCase();
     const status = statusFilter.value;
 
-    const filtered = allRecords.filter(r => {
-      const text = Object.values(r).join(" ").toLowerCase();
-      return (!search || text.includes(search))
-          && (!status || r.status === status || r.result === status);
+    const filtered = allRecords.filter(record => {
+      const text = Object.values(record).join(" ").toLowerCase();
+
+      return (!search || text.includes(search)) &&
+             (!status || record.status === status || record.result === status);
     });
 
     if (!filtered.length) {
-      tableBody.innerHTML = `<tr><td class="empty-row" colspan="${config.columns.length}">尚無資料</td></tr>`;
+      tableBody.innerHTML = `
+        <tr>
+          <td class="empty-row" colspan="${config.columns.length}">尚無資料</td>
+        </tr>
+      `;
       return;
     }
 
-    tableBody.innerHTML = filtered.map(r => {
+    tableBody.innerHTML = filtered.map(record => {
       let cells = "";
+
       if (page === "jd") {
         cells = `
-          <td>${r.title || "-"}</td>
-          <td>${r.department || "-"}</td>
-          <td>${r.keywords || "-"}</td>
-          <td>${badgeHTML(r.status)}</td>
+          <td>${record.title || "-"}</td>
+          <td>${record.department || "-"}</td>
+          <td>${record.keywords || "-"}</td>
+          <td>${badgeHTML(record.status)}</td>
         `;
-      } else if (page === "resume") {
-        const date = r.createdAt?.toDate ? r.createdAt.toDate().toLocaleDateString("zh-TW") : "-";
-        const dl = r.fileURL
-          ? `<a href="${r.fileURL}" target="_blank" class="action-btn edit" style="text-decoration:none">下載</a>`
-          : `<span style="color:#9ca3af">無檔案</span>`;
-        cells = `
-          <td>${r.fileName || "-"}</td>
-          <td>${r.jobTitle || "-"}</td>
-          <td>${badgeHTML(r.status)}</td>
-          <td>${date}</td>
-        `;
-        return `<tr>
-          ${cells}
-          <td class="row-actions">
-            ${dl}
-            <button class="action-btn edit" data-edit="${r.id}">編輯</button>
-            <button class="action-btn delete" data-delete="${r.id}" data-path="${r.storagePath || ""}">刪除</button>
-          </td>
-        </tr>`;
-      } else if (page === "interviewed") {
-        cells = `
-          <td>${r.name || "-"}</td>
-          <td>${r.jobTitle || "-"}</td>
-          <td>${r.interviewDate || "-"}</td>
-          <td>${badgeHTML(r.result)}</td>
-        `;
-      } else {
-        cells = `
-          <td>${r.name || "-"}</td>
-          <td>${r.jobTitle || "-"}</td>
-          <td>${r.receivedDate || "-"}</td>
-          <td>${badgeHTML(r.status)}</td>
+
+        return `
+          <tr>
+            ${cells}
+            <td class="row-actions">
+              <button class="action-btn edit" data-edit="${record.id}">編輯</button>
+              <button class="action-btn delete" data-delete="${record.id}">刪除</button>
+            </td>
+          </tr>
         `;
       }
-      return `<tr>
-        ${cells}
-        <td class="row-actions">
-          <button class="action-btn edit" data-edit="${r.id}">編輯</button>
-          <button class="action-btn delete" data-delete="${r.id}">刪除</button>
-        </td>
-      </tr>`;
+
+      if (page === "resume") {
+        const date = record.createdAt?.toDate
+          ? record.createdAt.toDate().toLocaleDateString("zh-TW")
+          : "-";
+
+        const link = record.fileURL
+          ? `<a href="${record.fileURL}" target="_blank" class="action-btn edit" style="text-decoration:none">開啟履歷</a>`
+          : `<span style="color:#9ca3af">無連結</span>`;
+
+        cells = `
+          <td>${record.fileName || "-"}</td>
+          <td>${record.jobTitle || "-"}</td>
+          <td>${badgeHTML(record.status)}</td>
+          <td>${date}</td>
+        `;
+
+        return `
+          <tr>
+            ${cells}
+            <td class="row-actions">
+              ${link}
+              <button class="action-btn edit" data-edit="${record.id}">編輯</button>
+              <button class="action-btn delete" data-delete="${record.id}">刪除</button>
+            </td>
+          </tr>
+        `;
+      }
+
+      if (page === "interviewed") {
+        cells = `
+          <td>${record.name || "-"}</td>
+          <td>${record.jobTitle || "-"}</td>
+          <td>${record.interviewDate || "-"}</td>
+          <td>${badgeHTML(record.result)}</td>
+        `;
+
+        return `
+          <tr>
+            ${cells}
+            <td class="row-actions">
+              <button class="action-btn edit" data-edit="${record.id}">編輯</button>
+              <button class="action-btn delete" data-delete="${record.id}">刪除</button>
+            </td>
+          </tr>
+        `;
+      }
+
+      cells = `
+        <td>${record.name || "-"}</td>
+        <td>${record.jobTitle || "-"}</td>
+        <td>${record.receivedDate || "-"}</td>
+        <td>${badgeHTML(record.status)}</td>
+      `;
+
+      return `
+        <tr>
+          ${cells}
+          <td class="row-actions">
+            <button class="action-btn edit" data-edit="${record.id}">編輯</button>
+            <button class="action-btn delete" data-delete="${record.id}">刪除</button>
+          </td>
+        </tr>
+      `;
     }).join("");
   }
 
   function badgeHTML(status) {
     const map = {
-      "招募中": "active", "通過": "active", "已上傳": "active",
-      "暫停": "pending", "待定": "pending", "待聯繫": "pending", "已約時間": "pending",
-      "已關閉": "neutral", "不錄用": "neutral", "不合適": "neutral", "未回應": "neutral"
+      "招募中": "active",
+      "通過": "active",
+      "已上傳": "active",
+      "暫停": "pending",
+      "待定": "pending",
+      "待聯繫": "pending",
+      "已約時間": "pending",
+      "已關閉": "neutral",
+      "不錄用": "neutral",
+      "不合適": "neutral",
+      "未回應": "neutral",
+      "未面談": "neutral"
     };
-    return `<span class="status-badge ${map[status] || "neutral"}">${status || "-"}</span>`;
+
+    return `
+      <span class="status-badge ${map[status] || "neutral"}">
+        ${status || "-"}
+      </span>
+    `;
   }
 
   function buildForm(record = {}) {
-    selectedFile = null;
     let html = "";
 
-    if (page === "resume") {
-      html += `
-        <label class="form-field full">
-          <span>上傳履歷</span>
-          <div style="display:flex;align-items:center;gap:12px;border:1px solid #d6d3d1;border-radius:16px;padding:14px 16px;background:#fff">
-            <button type="button" id="filePickerBtn" class="btn btn-secondary" style="white-space:nowrap;padding:8px 16px;border-radius:12px">選擇檔案</button>
-            <span id="fileNameDisplay" style="color:#6b7280;font-size:14px">${record.fileName || "尚未選擇檔案"}</span>
-          </div>
-          <input type="file" id="resumeFileInput" accept=".pdf,.doc,.docx" style="display:none" />
-        </label>
-      `;
-    }
+    config.fields.forEach(field => {
+      const value = record[field.key] || "";
+      const className = field.full ? "form-field full" : "form-field";
 
-    config.fields.forEach(f => {
-      const val = record[f.key] || "";
-      const cls = f.full ? "form-field full" : "form-field";
-      if (f.type === "select") {
-        html += `<label class="${cls}"><span>${f.label}</span>
-          <select name="${f.key}">
-            ${f.options.map(o => `<option value="${o}" ${val === o ? "selected" : ""}>${o}</option>`).join("")}
-          </select></label>`;
-      } else if (f.type === "textarea") {
-        html += `<label class="${cls}"><span>${f.label}</span>
-          <textarea name="${f.key}">${val}</textarea></label>`;
+      if (field.type === "select") {
+        html += `
+          <label class="${className}">
+            <span>${field.label}</span>
+            <select name="${field.key}">
+              ${field.options.map(option => `
+                <option value="${option}" ${value === option ? "selected" : ""}>
+                  ${option}
+                </option>
+              `).join("")}
+            </select>
+          </label>
+        `;
+      } else if (field.type === "textarea") {
+        html += `
+          <label class="${className}">
+            <span>${field.label}</span>
+            <textarea name="${field.key}">${value}</textarea>
+          </label>
+        `;
       } else {
-        html += `<label class="${cls}"><span>${f.label}</span>
-          <input type="${f.type}" name="${f.key}" value="${val}" ${f.required ? "required" : ""} /></label>`;
+        html += `
+          <label class="${className}">
+            <span>${field.label}</span>
+            <input
+              type="${field.type}"
+              name="${field.key}"
+              value="${value}"
+              ${field.required ? "required" : ""}
+            />
+          </label>
+        `;
       }
     });
 
     recordForm.innerHTML = html;
-
-    if (page === "resume") {
-      const fileInput   = document.getElementById("resumeFileInput");
-      const fileDisplay = document.getElementById("fileNameDisplay");
-      const pickerBtn   = document.getElementById("filePickerBtn");
-      pickerBtn.addEventListener("click", () => fileInput.click());
-      fileInput.addEventListener("change", () => {
-        selectedFile = fileInput.files[0] || null;
-        fileDisplay.textContent = selectedFile ? selectedFile.name : "尚未選擇檔案";
-      });
-    }
   }
 
   function openModal(record = {}, id = null) {
@@ -333,81 +418,90 @@ function initBackend() {
     modalOverlay.classList.add("hidden");
     document.body.classList.remove("modal-open");
     editingId = null;
-    selectedFile = null;
   }
 
-  async function saveRecord(e) {
-    e.preventDefault();
+  async function saveRecord(event) {
+    event.preventDefault();
+
     saveRecordBtn.disabled = true;
     saveRecordBtn.textContent = "儲存中...";
 
     const formData = new FormData(recordForm);
     const data = {};
-    formData.forEach((v, k) => { data[k] = v; });
+
+    formData.forEach((value, key) => {
+      data[key] = value;
+    });
 
     try {
-      if (page === "resume" && selectedFile) {
-        const filePath = `resumes/${Date.now()}_${selectedFile.name}`;
-        const storageRef = ref(storage, filePath);
-        await new Promise((resolve, reject) => {
-          const task = uploadBytesResumable(storageRef, selectedFile);
-          task.on("state_changed", null, reject, async () => {
-            const url = await getDownloadURL(task.snapshot.ref);
-            data.fileURL     = url;
-            data.storagePath = filePath;
-            data.fileName    = selectedFile.name;
-            resolve();
-          });
-        });
-      }
-
       if (editingId) {
-        await updateDoc(doc(db, config.collection, editingId), { ...data });
+        await updateDoc(doc(db, config.collection, editingId), {
+          ...data
+        });
       } else {
-        await addDoc(collection(db, config.collection), { ...data, createdAt: serverTimestamp() });
+        await addDoc(fsCollection(db, config.collection), {
+          ...data,
+          createdAt: serverTimestamp()
+        });
       }
 
       closeModal();
       await loadRecords();
-    } catch (err) {
-      console.error("儲存失敗：", err);
-      alert("儲存失敗：" + err.message);
+    } catch (error) {
+      console.error("儲存失敗：", error);
+      alert("儲存失敗：" + error.message);
     } finally {
       saveRecordBtn.disabled = false;
       saveRecordBtn.textContent = "儲存";
     }
   }
 
-  async function deleteRecord(id, storagePath) {
+  async function deleteRecord(id) {
     if (!confirm("確定要刪除此筆資料？")) return;
+
     try {
       await deleteDoc(doc(db, config.collection, id));
-      if (storagePath) {
-        await deleteObject(ref(storage, storagePath)).catch(() => {});
-      }
       await loadRecords();
-    } catch (err) {
-      console.error("刪除失敗：", err);
+    } catch (error) {
+      console.error("刪除失敗：", error);
+      alert("刪除失敗：" + error.message);
     }
   }
 
   addRecordBtn.addEventListener("click", () => openModal());
   closeModalBtn.addEventListener("click", closeModal);
   cancelModalBtn.addEventListener("click", closeModal);
-  modalOverlay.addEventListener("click", e => { if (e.target === modalOverlay) closeModal(); });
-  recordForm.addEventListener("submit", saveRecord);
-  searchInput.addEventListener("input", () => renderTable());
-  statusFilter.addEventListener("change", () => renderTable());
 
-  tableBody.addEventListener("click", e => {
-    const editBtn   = e.target.closest("[data-edit]");
-    const deleteBtn = e.target.closest("[data-delete]");
-    if (editBtn) {
-      const record = allRecords.find(r => r.id === editBtn.dataset.edit);
-      if (record) openModal(record, record.id);
+  modalOverlay.addEventListener("click", event => {
+    if (event.target === modalOverlay) {
+      closeModal();
     }
+  });
+
+  recordForm.addEventListener("submit", saveRecord);
+
+  searchInput.addEventListener("input", () => {
+    renderTable();
+  });
+
+  statusFilter.addEventListener("change", () => {
+    renderTable();
+  });
+
+  tableBody.addEventListener("click", event => {
+    const editBtn = event.target.closest("[data-edit]");
+    const deleteBtn = event.target.closest("[data-delete]");
+
+    if (editBtn) {
+      const record = allRecords.find(item => item.id === editBtn.dataset.edit);
+
+      if (record) {
+        openModal(record, record.id);
+      }
+    }
+
     if (deleteBtn) {
-      deleteRecord(deleteBtn.dataset.delete, deleteBtn.dataset.path || "");
+      deleteRecord(deleteBtn.dataset.delete);
     }
   });
 
