@@ -4,12 +4,12 @@ import { getFirestore } from "https://www.gstatic.com/firebasejs/12.12.0/firebas
 import { getStorage } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-storage.js";
 
 const firebaseConfig = {
-  apiKey: "你的 apiKey",
-  authDomain: "你的 authDomain",
-  projectId: "你的 projectId",
-  storageBucket: "你的 storageBucket",
-  messagingSenderId: "你的 messagingSenderId",
-  appId: "你的 appId"
+  apiKey: "AIzaSyCgt4XVsPxcI2XfKKdCEWxZTHgFOX2tRew",
+  authDomain: "hr-backoffice-shared.firebaseapp.com",
+  projectId: "hr-backoffice-shared",
+  storageBucket: "hr-backoffice-shared.firebasestorage.app",
+  messagingSenderId: "816300633926",
+  appId: "1:816300633926:web:5841f03a3936c563fbff47"
 };
 
 const app = initializeApp(firebaseConfig);
