@@ -1,4 +1,4 @@
-import { auth, db, storage } from "./firebase-config.js";
+import { auth, db } from "./firebase-config.js";
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -15,12 +15,24 @@ import {
   serverTimestamp,
   getDocs
 } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
-import {
-  ref as storageRef,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject
-} from "https://www.gstatic.com/firebasejs/12.12.0/firebase-storage.js";
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function base64ToBlob(dataUrl) {
+  const parts = dataUrl.split(",");
+  const mime = parts[0].match(/:(.*?);/)[1];
+  const raw = atob(parts[1]);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
 
 const APP_CONFIG = {
   jd: {
@@ -70,7 +82,7 @@ const APP_CONFIG = {
       { key: "fileName", label: "履歷檔名" },
       { key: "uploadedAtText", label: "上傳時間" },
       { key: "status", label: "目前狀態", badge: true },
-      { key: "fileUrl", label: "履歷檔案", link: true, linkText: "開啟履歷" }
+      { key: "_download", label: "履歷檔案", download: true }
     ],
     fields: [
       { name: "resumeFile", label: "上傳履歷", type: "file", accept: ".pdf,.doc,.docx", required: true, full: true },
@@ -719,19 +731,32 @@ function initBackendPage() {
       openModal("edit", currentRecord);
     }
 
+    if (action === "download" && currentRecord) {
+      if (!currentRecord.fileData) {
+        window.alert("此履歷沒有檔案資料");
+        return;
+      }
+      try {
+        const blob = base64ToBlob(currentRecord.fileData);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = currentRecord.fileName || "resume";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error(error);
+        window.alert("下載失敗");
+      }
+    }
+
     if (action === "delete" && currentRecord) {
       const confirmed = window.confirm("確定要刪除這筆資料嗎？");
       if (!confirmed) return;
 
       try {
-        if (pageKey === "resume" && currentRecord.storagePath) {
-          try {
-            await deleteObject(storageRef(storage, currentRecord.storagePath));
-          } catch (error) {
-            console.warn("刪除履歷檔失敗", error);
-          }
-        }
-
         await deleteDoc(doc(db, "hr_admin", pageKey, "records", id));
       } catch (error) {
         console.error(error);
@@ -762,23 +787,14 @@ function initBackendPage() {
         }
 
         if (file) {
-          const cleanName = file.name.replace(/\s+/g, "_");
-          const path = `resumes/${Date.now()}_${cleanName}`;
-          const fileRef = storageRef(storage, path);
-          const uploadResult = await uploadBytes(fileRef, file);
-          const fileUrl = await getDownloadURL(uploadResult.ref);
-
-          payload.fileName = file.name;
-          payload.fileUrl = fileUrl;
-          payload.storagePath = uploadResult.ref.fullPath;
-
-          if (editingRecord?.storagePath) {
-            try {
-              await deleteObject(storageRef(storage, editingRecord.storagePath));
-            } catch (error) {
-              console.warn("舊履歷檔刪除失敗", error);
-            }
+          if (file.size > 700 * 1024) {
+            window.alert("檔案過大，請上傳 700KB 以下的履歷檔案（Firestore 免費方案限制）");
+            return;
           }
+
+          const fileData = await fileToBase64(file);
+          payload.fileName = file.name;
+          payload.fileData = fileData;
         }
       }
 
@@ -796,7 +812,7 @@ function initBackendPage() {
       console.error(error);
       window.alert(
         pageKey === "resume"
-          ? "上傳失敗，請確認 Firebase Storage 已開啟，而且目前帳號有上傳權限"
+          ? "上傳失敗，請稍後再試"
           : "儲存失敗，請稍後再試"
       );
     }
@@ -1044,6 +1060,17 @@ function buildBody(columns, records) {
                   value
                     ? `<a href="${escapeHtml(String(value))}" target="_blank" rel="noopener noreferrer">${escapeHtml(column.linkText || "查看")}</a>`
                     : "-"
+                }
+              </td>
+            `;
+          }
+
+          if (column.download) {
+            return `
+              <td>
+                ${record.fileData
+                  ? `<button class="action-btn edit" data-action="download" data-id="${escapeHtml(record.id)}">下載履歷</button>`
+                  : "-"
                 }
               </td>
             `;
