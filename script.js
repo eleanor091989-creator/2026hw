@@ -1,4 +1,4 @@
-import { auth, db } from "./firebase-config.js";
+import { auth, db, storage } from "./firebase-config.js";
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -15,6 +15,12 @@ import {
   serverTimestamp,
   getDocs
 } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+import {
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject
+} from "https://www.gstatic.com/firebasejs/12.12.0/firebase-storage.js";
 
 const APP_CONFIG = {
   jd: {
@@ -55,35 +61,27 @@ const APP_CONFIG = {
   resume: {
     pageTag: "RESUME",
     pageTitle: "履歷",
-    pageDescription: "彙整候選人履歷資料，快速查看匹配度、年資與招募狀態。",
-    addLabel: "新增履歷",
-    searchPlaceholder: "搜尋姓名、應徵職缺、狀態",
+    pageDescription: "直接上傳候選人履歷檔，供 HR 共用查看與後續篩選。",
+    addLabel: "上傳履歷",
+    searchPlaceholder: "搜尋檔名、狀態",
     filterLabel: "全部狀態",
-    statusOptions: ["已完成初篩", "待安排面談", "已進入複試", "已淘汰"],
+    statusOptions: ["已上傳", "待初篩", "已完成初篩", "待安排面談", "已進入複試", "已淘汰"],
     columns: [
-      { key: "name", label: "姓名" },
-      { key: "role", label: "應徵職缺" },
-      { key: "match", label: "關鍵字匹配" },
-      { key: "experience", label: "工作年資" },
-      { key: "status", label: "目前狀態", badge: true }
+      { key: "fileName", label: "履歷檔名" },
+      { key: "uploadedAtText", label: "上傳時間" },
+      { key: "status", label: "目前狀態", badge: true },
+      { key: "fileUrl", label: "履歷檔案", link: true, linkText: "開啟履歷" }
     ],
     fields: [
-      { name: "name", label: "姓名", type: "text", required: true },
-      { name: "role", label: "應徵職缺", type: "text", required: true },
-      { name: "match", label: "關鍵字匹配", type: "text", required: true },
-      { name: "experience", label: "工作年資", type: "text", required: true },
-      { name: "status", label: "目前狀態", type: "select", options: ["已完成初篩", "待安排面談", "已進入複試", "已淘汰"], required: true }
+      { name: "resumeFile", label: "上傳履歷", type: "file", accept: ".pdf,.doc,.docx", required: true, full: true },
+      { name: "status", label: "目前狀態", type: "select", options: ["已上傳", "待初篩", "已完成初篩", "待安排面談", "已進入複試", "已淘汰"], required: true }
     ],
-    defaults: [
-      { name: "王小雅", role: "招募專員", match: "88%", experience: "3 年", status: "已完成初篩" },
-      { name: "林子晴", role: "教育訓練專員", match: "81%", experience: "2 年", status: "待安排面談" },
-      { name: "陳冠宇", role: "薪酬福利管理師", match: "76%", experience: "4 年", status: "已進入複試" }
-    ],
+    defaults: [],
     stats(records) {
       return [
         { label: "總履歷數", value: records.length },
-        { label: "待安排面談", value: records.filter((item) => item.status === "待安排面談").length },
-        { label: "已進入複試", value: records.filter((item) => item.status === "已進入複試").length }
+        { label: "待初篩", value: records.filter((item) => item.status === "待初篩").length },
+        { label: "待安排面談", value: records.filter((item) => item.status === "待安排面談").length }
       ];
     }
   },
@@ -164,6 +162,7 @@ const config = APP_CONFIG[pageKey];
 
 let allRecords = [];
 let editingId = null;
+let editingRecord = null;
 let unsubscribeRecords = null;
 
 injectExtraStyles();
@@ -444,6 +443,16 @@ function injectExtraStyles() {
       color: #374151;
     }
 
+    .table-card a {
+      color: #92400e;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .table-card a:hover {
+      text-decoration: underline;
+    }
+
     .modal-overlay,
     .auth-overlay {
       position: fixed;
@@ -539,6 +548,11 @@ function injectExtraStyles() {
     .form-field textarea {
       min-height: 120px;
       resize: vertical;
+    }
+
+    .form-field input[type="file"] {
+      padding: 12px 14px;
+      background: #fafaf9;
     }
 
     .modal-actions,
@@ -706,60 +720,128 @@ function initBackendPage() {
     }
 
     if (action === "delete" && currentRecord) {
-      const confirmed = window.confirm(`確定要刪除「${config.pageTitle}」這筆資料嗎？`);
+      const confirmed = window.confirm("確定要刪除這筆資料嗎？");
       if (!confirmed) return;
 
-      await deleteDoc(doc(db, "hr_admin", pageKey, "records", id));
+      try {
+        if (pageKey === "resume" && currentRecord.storagePath) {
+          try {
+            await deleteObject(storageRef(storage, currentRecord.storagePath));
+          } catch (error) {
+            console.warn("刪除履歷檔失敗", error);
+          }
+        }
+
+        await deleteDoc(doc(db, "hr_admin", pageKey, "records", id));
+      } catch (error) {
+        console.error(error);
+        window.alert("刪除失敗，請稍後再試");
+      }
     }
   });
 
   recordForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const formData = new FormData(recordForm);
-    const payload = {};
+    try {
+      const formData = new FormData(recordForm);
+      const payload = {};
 
-    config.fields.forEach((field) => {
-      payload[field.name] = String(formData.get(field.name) || "").trim();
-    });
+      config.fields.forEach((field) => {
+        if (field.type === "file") return;
+        payload[field.name] = String(formData.get(field.name) || "").trim();
+      });
 
-    payload.updatedAt = serverTimestamp();
+      if (pageKey === "resume") {
+        const fileInput = recordForm.querySelector('input[name="resumeFile"]');
+        const file = fileInput?.files?.[0];
 
-    if (editingId) {
-      await updateDoc(doc(db, "hr_admin", pageKey, "records", editingId), payload);
-    } else {
-      payload.createdAt = serverTimestamp();
-      await addDoc(collection(db, "hr_admin", pageKey, "records"), payload);
+        if (!editingId && !file) {
+          window.alert("請先選擇履歷檔案");
+          return;
+        }
+
+        if (file) {
+          const cleanName = file.name.replace(/\s+/g, "_");
+          const path = `resumes/${Date.now()}_${cleanName}`;
+          const fileRef = storageRef(storage, path);
+          const uploadResult = await uploadBytes(fileRef, file);
+          const fileUrl = await getDownloadURL(uploadResult.ref);
+
+          payload.fileName = file.name;
+          payload.fileUrl = fileUrl;
+          payload.storagePath = uploadResult.ref.fullPath;
+
+          if (editingRecord?.storagePath) {
+            try {
+              await deleteObject(storageRef(storage, editingRecord.storagePath));
+            } catch (error) {
+              console.warn("舊履歷檔刪除失敗", error);
+            }
+          }
+        }
+      }
+
+      payload.updatedAt = serverTimestamp();
+
+      if (editingId) {
+        await updateDoc(doc(db, "hr_admin", pageKey, "records", editingId), payload);
+      } else {
+        payload.createdAt = serverTimestamp();
+        await addDoc(collection(db, "hr_admin", pageKey, "records"), payload);
+      }
+
+      closeModal();
+    } catch (error) {
+      console.error(error);
+      window.alert(
+        pageKey === "resume"
+          ? "上傳失敗，請確認 Firebase Storage 已開啟，而且目前帳號有上傳權限"
+          : "儲存失敗，請稍後再試"
+      );
     }
-
-    closeModal();
   });
 
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       updateSessionBar(user);
       hideAuthOverlay();
-      await seedDefaultsIfEmpty();
-      subscribeRecords();
+
+      try {
+        await seedDefaultsIfEmpty();
+        subscribeRecords();
+      } catch (error) {
+        console.error(error);
+      }
     } else {
       updateSessionBar(null);
       showAuthOverlay();
       allRecords = [];
       render();
-      if (unsubscribeRecords) unsubscribeRecords();
+
+      if (unsubscribeRecords) {
+        unsubscribeRecords();
+        unsubscribeRecords = null;
+      }
     }
   });
 
   function subscribeRecords() {
-    if (unsubscribeRecords) unsubscribeRecords();
+    if (unsubscribeRecords) {
+      unsubscribeRecords();
+    }
 
     unsubscribeRecords = onSnapshot(
       collection(db, "hr_admin", pageKey, "records"),
       (snapshot) => {
-        allRecords = snapshot.docs.map((item) => ({
-          id: item.id,
-          ...item.data()
-        }));
+        allRecords = snapshot.docs.map((item) => {
+          const data = item.data();
+          return {
+            id: item.id,
+            ...data,
+            uploadedAtText: formatDateTime(data.createdAt || data.updatedAt)
+          };
+        });
         render();
       },
       (error) => {
@@ -772,6 +854,7 @@ function initBackendPage() {
     const ref = collection(db, "hr_admin", pageKey, "records");
     const snapshot = await getDocs(ref);
     if (!snapshot.empty) return;
+    if (!config.defaults.length) return;
 
     for (const item of config.defaults) {
       await addDoc(ref, {
@@ -802,6 +885,7 @@ function initBackendPage() {
 
   function openModal(mode, record = {}) {
     editingId = record.id || null;
+    editingRecord = record.id ? record : null;
     modalTitle.textContent = mode === "edit" ? `編輯${config.pageTitle}` : config.addLabel;
     recordForm.innerHTML = buildForm(config.fields, record);
     modalOverlay.classList.remove("hidden");
@@ -812,6 +896,7 @@ function initBackendPage() {
     modalOverlay.classList.add("hidden");
     document.body.classList.remove("modal-open");
     editingId = null;
+    editingRecord = null;
   }
 }
 
@@ -874,6 +959,8 @@ function buildAuthOverlay() {
 
 function buildSessionBar() {
   const header = document.querySelector(".site-header");
+  if (!header) return;
+
   const bar = document.createElement("div");
   bar.className = "session-bar";
   bar.id = "sessionBar";
@@ -939,6 +1026,7 @@ function buildBody(columns, records) {
       const cells = columns
         .map((column) => {
           const value = record[column.key] || "";
+
           if (column.badge) {
             return `
               <td>
@@ -948,6 +1036,19 @@ function buildBody(columns, records) {
               </td>
             `;
           }
+
+          if (column.link) {
+            return `
+              <td>
+                ${
+                  value
+                    ? `<a href="${escapeHtml(String(value))}" target="_blank" rel="noopener noreferrer">${escapeHtml(column.linkText || "查看")}</a>`
+                    : "-"
+                }
+              </td>
+            `;
+          }
+
           return `<td>${escapeHtml(String(value))}</td>`;
         })
         .join("");
@@ -966,11 +1067,24 @@ function buildBody(columns, records) {
 }
 
 function buildForm(fields, record) {
+  const isEdit = Boolean(record.id);
+
   return fields
     .map((field) => {
       const value = record[field.name] || "";
-      const required = field.required ? "required" : "";
       const fullClass = field.full ? "full" : "";
+
+      if (field.type === "file") {
+        const required = field.required && !isEdit ? "required" : "";
+        return `
+          <label class="form-field ${fullClass}">
+            <span>${escapeHtml(field.label)}${isEdit ? "（不更換可留空）" : ""}</span>
+            <input type="file" name="${escapeHtml(field.name)}" accept="${escapeHtml(field.accept || "")}" ${required} />
+          </label>
+        `;
+      }
+
+      const required = field.required ? "required" : "";
 
       if (field.type === "textarea") {
         return `
@@ -1009,7 +1123,7 @@ function buildForm(fields, record) {
 
 function getStatusClass(status) {
   const activeSet = ["進行中", "已完成初篩", "已進入複試", "安排複試", "準備錄用"];
-  const pendingSet = ["待更新", "待安排面談", "待回覆", "待通知", "待主管確認", "待聯繫"];
+  const pendingSet = ["已上傳", "待初篩", "待更新", "待安排面談", "待回覆", "待通知", "待主管確認", "待聯繫"];
 
   if (activeSet.includes(status)) return "active";
   if (pendingSet.includes(status)) return "pending";
@@ -1027,6 +1141,25 @@ function translateAuthError(error) {
   if (code.includes("user-not-found")) return "找不到這個帳號";
   if (code.includes("wrong-password")) return "密碼錯誤";
   return "操作失敗，請稍後再試一次";
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+
+  try {
+    const date = typeof value.toDate === "function" ? value.toDate() : new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hour = String(date.getHours()).padStart(2, "0");
+    const minute = String(date.getMinutes()).padStart(2, "0");
+
+    return `${year}/${month}/${day} ${hour}:${minute}`;
+  } catch (error) {
+    return "-";
+  }
 }
 
 function escapeHtml(value) {
