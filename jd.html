@@ -3,103 +3,767 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>職缺 JD｜履歷關鍵字整合推薦系統</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body data-page="jd">
-  <header class="site-header">
-    <div class="container header-inner">
-      <div class="brand">
-        <div class="brand-badge">HR</div>
-        <div class="brand-text">
-          <p class="brand-tag">INTERNAL TOOL</p>
-          <h1>履歷關鍵字整合推薦系統</h1>
-        </div>
-      </div>
+  <title>JD 履歷智能排序系統</title>
 
-      <nav class="nav">
-        <a href="index.html">首頁</a>
-        <a href="jd.html" data-nav="jd">職缺 JD</a>
-        <a href="resume.html" data-nav="resume">履歷</a>
-        <a href="interviewed.html" data-nav="interviewed">已面談</a>
-        <a href="not-interviewed.html" data-nav="not-interviewed">未面談</a>
-      </nav>
-    </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: #f7f9fc;
+      color: #1f2937;
+    }
+
+    header {
+      height: 76px;
+      background: #ffffff;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 28px;
+    }
+
+    header h1 {
+      font-size: 26px;
+      margin: 0;
+      font-weight: 800;
+    }
+
+    .help-btn {
+      border: none;
+      background: #f1f5f9;
+      padding: 12px 20px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: 30% 70%;
+      gap: 24px;
+      padding: 24px;
+    }
+
+    .panel {
+      background: white;
+      border: 1px solid #dbeafe;
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+    }
+
+    .panel h2 {
+      margin-top: 0;
+      color: #2563eb;
+      font-size: 22px;
+    }
+
+    .right h2 {
+      color: #6d28d9;
+    }
+
+    .upload-box {
+      border: 2px dashed #93c5fd;
+      border-radius: 14px;
+      height: 220px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      margin-bottom: 20px;
+      background: #fbfdff;
+      text-align: center;
+    }
+
+    .right .upload-box {
+      border-color: #c4b5fd;
+      height: 170px;
+    }
+
+    .upload-box:hover {
+      background: #f8fbff;
+    }
+
+    .upload-icon {
+      font-size: 44px;
+      margin-bottom: 12px;
+    }
+
+    .upload-box strong {
+      font-size: 18px;
+    }
+
+    .upload-box p {
+      margin: 8px 0 0;
+      color: #64748b;
+      line-height: 1.6;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .card {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      background: #ffffff;
+    }
+
+    .card-title {
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .file-name {
+      color: #334155;
+      font-size: 15px;
+      margin-top: 8px;
+      word-break: break-all;
+    }
+
+    .summary p {
+      margin: 12px 0;
+      font-size: 15px;
+    }
+
+    .tag {
+      display: inline-block;
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 7px 12px;
+      border-radius: 7px;
+      margin: 5px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 14px 26px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .btn-blue {
+      background: #2563eb;
+      color: white;
+      width: 100%;
+    }
+
+    .btn-purple {
+      background: #6d28d9;
+      color: white;
+      width: 260px;
+    }
+
+    .btn-light {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      color: #334155;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 14px 0;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    th {
+      background: #f8f5ff;
+      color: #5b21b6;
+      text-align: left;
+      padding: 14px;
+      font-size: 14px;
+    }
+
+    td {
+      border-top: 1px solid #e5e7eb;
+      padding: 14px;
+      font-size: 14px;
+      vertical-align: top;
+    }
+
+    .rank {
+      font-weight: 800;
+      color: #2563eb;
+    }
+
+    .yes {
+      color: #059669;
+      font-weight: 700;
+    }
+
+    .no {
+      color: #dc2626;
+      font-weight: 700;
+    }
+
+    .level {
+      padding: 6px 12px;
+      border-radius: 7px;
+      font-weight: 800;
+      display: inline-block;
+    }
+
+    .level-a { background: #dbeafe; color: #1d4ed8; }
+    .level-b { background: #dcfce7; color: #15803d; }
+    .level-c { background: #fef3c7; color: #b45309; }
+    .level-d { background: #ffedd5; color: #c2410c; }
+    .level-e { background: #fee2e2; color: #dc2626; }
+    .level-f { background: #e5e7eb; color: #374151; }
+
+    .rule {
+      margin: 0 24px 24px;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      color: #475569;
+      line-height: 1.8;
+    }
+
+    .loading {
+      color: #6d28d9;
+      font-weight: 700;
+    }
+
+    .small {
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 900px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+
+      .btn-purple {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>JD 履歷智能排序系統</h1>
+    <button class="help-btn" onclick="showHelp()">ⓘ 使用說明</button>
   </header>
 
-  <main class="backend-main">
-    <div class="container backend-layout">
-      <aside class="backend-sidebar">
-        <div class="sidebar-card">
-          <p class="section-tag">HR BACK OFFICE</p>
-          <h2>招募管理後台</h2>
-          <p>集中管理職缺、履歷與面談進度，支援本機新增、編輯、刪除。</p>
+  <main class="container">
+    <section class="panel left">
+      <h2>1 上傳 JD</h2>
+
+      <label class="upload-box">
+        <div class="upload-icon">📄</div>
+        <strong>點擊上傳 JD 檔案</strong>
+        <p>支援 PDF / DOCX / TXT<br>不支援舊版 .doc</p>
+        <input id="jdInput" type="file" accept=".pdf,.docx,.txt" />
+      </label>
+
+      <div class="card">
+        <div class="card-title">目前上傳的 JD</div>
+        <div id="jdFileName" class="file-name">尚未上傳 JD</div>
+      </div>
+
+      <div class="card summary">
+        <div class="card-title">JD 解析摘要</div>
+        <p>關鍵職位：<span id="jobRole">尚未分析</span></p>
+        <p>工作年資要求：<span id="yearReq">尚未分析</span></p>
+        <p>是否需要管理經驗：<span id="managerReq">尚未分析</span></p>
+        <p>關鍵字：</p>
+        <div id="keywordTags"></div>
+      </div>
+
+      <button class="btn btn-blue" onclick="resetJD()">重新上傳 JD</button>
+    </section>
+
+    <section class="panel right">
+      <h2>2 上傳履歷</h2>
+
+      <label class="upload-box">
+        <div class="upload-icon">📁</div>
+        <strong>點擊上傳履歷</strong>
+        <p>最多 50 份，支援 PDF / DOCX / TXT<br>不支援舊版 .doc</p>
+        <input id="resumeInput" type="file" multiple accept=".pdf,.docx,.txt" />
+      </label>
+
+      <div class="toolbar">
+        <div class="card-title">已上傳 <span id="resumeCount">0</span> / 50 份履歷</div>
+        <button class="btn btn-light" onclick="clearResumes()">清除全部</button>
+      </div>
+
+      <div class="toolbar">
+        <button class="btn btn-purple" onclick="startRanking()">開始讀取與排序</button>
+        <button class="btn btn-light" onclick="clearResumes()">重新上傳履歷</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          排序結果
+          <span class="small">
+            A：相關職位與年資　B：關鍵字≥5　C：關鍵字=4　D：關鍵字=2　E：關鍵字=1
+          </span>
         </div>
 
-        <div class="sidebar-links">
-          <a href="jd.html" data-nav="jd">職缺 JD 管理</a>
-          <a href="resume.html" data-nav="resume">履歷管理</a>
-          <a href="interviewed.html" data-nav="interviewed">已面談管理</a>
-          <a href="not-interviewed.html" data-nav="not-interviewed">未面談管理</a>
-        </div>
-      </aside>
-
-      <section class="backend-content">
-        <div class="page-header">
-          <div>
-            <p class="section-tag" id="pageTag"></p>
-            <h2 id="pageTitle"></h2>
-            <p class="page-desc" id="pageDescription"></p>
-          </div>
-          <button class="btn btn-primary" id="addRecordBtn" type="button">新增資料</button>
-        </div>
-
-        <div class="stats-grid" id="statsGrid"></div>
-
-        <div class="panel">
-          <div class="panel-toolbar">
-            <input class="panel-input" id="searchInput" type="text" placeholder="搜尋資料" />
-            <select class="panel-select" id="statusFilter"></select>
-          </div>
-
-          <div class="table-card">
-            <table class="data-table">
-              <thead id="tableHead"></thead>
-              <tbody id="tableBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-    </div>
+        <table>
+          <thead>
+            <tr>
+              <th>排名</th>
+              <th>履歷檔名</th>
+              <th>相關職位/年資</th>
+              <th>管理經驗</th>
+              <th>關鍵字符合度</th>
+              <th>符合等級</th>
+              <th>符合關鍵字</th>
+            </tr>
+          </thead>
+          <tbody id="resultBody">
+            <tr>
+              <td colspan="7" style="text-align:center;color:#64748b;">尚未產生排序結果</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   </main>
 
-  <div class="modal-overlay hidden" id="modalOverlay">
-    <div class="modal-card">
-      <div class="modal-header">
-        <div>
-          <p class="section-tag" id="modalTag"></p>
-          <h3 id="modalTitle">新增資料</h3>
-        </div>
-        <button class="icon-btn" id="closeModalBtn" type="button">×</button>
-      </div>
-
-      <form id="recordForm" class="form-grid"></form>
-
-      <div class="modal-actions">
-        <button class="btn btn-secondary" id="cancelModalBtn" type="button">取消</button>
-        <button class="btn btn-primary" id="saveRecordBtn" type="submit" form="recordForm">儲存</button>
-      </div>
-    </div>
+  <div class="rule">
+    排序規則：如果 JD 需要管理經驗，會優先把「有管理經驗」的履歷排在前面，再依照相關職位、工作年資與關鍵字符合度排序。<br>
+    注意：這是純前端版本，檔案只會在你的瀏覽器內讀取，不會上傳到資料庫，也不會保存。
   </div>
 
-  <footer class="site-footer">
-    <div class="container footer-inner">
-      <p class="footer-title">履歷關鍵字整合推薦系統</p>
-      <p>本系統僅供公司內部 HR 使用</p>
-      <p>如有操作問題，請聯繫人資系統管理單位</p>
-    </div>
-  </footer>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-<script type="module" src="script.js"></script>
+    const jdInput = document.getElementById("jdInput");
+    const resumeInput = document.getElementById("resumeInput");
+
+    let jdFile = null;
+    let jdText = "";
+    let jdKeywords = [];
+    let jdNeedsManager = false;
+    let jdRequiredYears = 0;
+    let jdRoleKeywords = [];
+    let resumeFiles = [];
+
+    const allPossibleKeywords = [
+      "招募", "徵才", "面試", "邀約", "人才", "履歷", "招募流程", "任用",
+      "人資", "HR", "Human Resources", "Recruiter", "Recruiting",
+      "薪酬", "績效", "教育訓練", "員工關係", "勞基法", "出勤",
+      "行政", "總務", "文書", "客服", "業務", "銷售", "行銷", "企劃",
+      "專案管理", "溝通", "協調", "簡報", "報表", "Excel", "PowerPoint",
+      "數據分析", "資料分析", "Google Analytics", "CRM", "ERP",
+      "管理", "主管", "帶人", "領導", "團隊管理", "team leader", "manager",
+      "跨部門", "英文", "TOEIC", "多益", "客戶服務", "問題解決"
+    ];
+
+    const managerWords = [
+      "管理經驗", "主管經驗", "帶人", "管理團隊", "團隊管理",
+      "領導", "主管", "組長", "課長", "經理", "副理",
+      "manager", "management", "team leader", "leadership", "supervisor"
+    ];
+
+    const roleWords = [
+      "招募", "徵才", "人資", "HR", "Recruiter", "Recruiting",
+      "人才", "任用", "面試", "招募專員", "人資專員",
+      "行政", "業務", "銷售", "行銷", "企劃", "客服", "專案"
+    ];
+
+    jdInput.addEventListener("change", async function () {
+      jdFile = this.files[0];
+      if (!jdFile) return;
+
+      document.getElementById("jdFileName").innerText =
+        jdFile.name + "（" + Math.round(jdFile.size / 1024) + " KB）";
+
+      setLoading("正在讀取 JD 內容...");
+
+      try {
+        jdText = await readFileText(jdFile);
+        analyzeJD(jdText);
+      } catch (error) {
+        alert("JD 讀取失敗，請確認檔案格式為 PDF / DOCX / TXT。");
+        console.error(error);
+      }
+    });
+
+    resumeInput.addEventListener("change", function () {
+      const selectedFiles = Array.from(this.files);
+
+      if (selectedFiles.length > 50) {
+        alert("一次最多只能上傳 50 份履歷，系統只會讀取前 50 份。");
+        resumeFiles = selectedFiles.slice(0, 50);
+      } else {
+        resumeFiles = selectedFiles;
+      }
+
+      document.getElementById("resumeCount").innerText = resumeFiles.length;
+    });
+
+    async function readFileText(file) {
+      const fileName = file.name.toLowerCase();
+
+      if (fileName.endsWith(".pdf")) {
+        return await readPdf(file);
+      }
+
+      if (fileName.endsWith(".docx")) {
+        return await readDocx(file);
+      }
+
+      if (fileName.endsWith(".txt")) {
+        return await readTxt(file);
+      }
+
+      throw new Error("不支援的檔案格式");
+    }
+
+    async function readPdf(file) {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let text = "";
+
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const content = await page.getTextContent();
+        const strings = content.items.map(item => item.str);
+        text += strings.join(" ") + "\n";
+      }
+
+      return normalizeText(text);
+    }
+
+    async function readDocx(file) {
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      return normalizeText(result.value);
+    }
+
+    async function readTxt(file) {
+      const text = await file.text();
+      return normalizeText(text);
+    }
+
+    function normalizeText(text) {
+      return text
+        .replace(/\s+/g, " ")
+        .replace(/[，。；：、（）()【】]/g, " ")
+        .trim();
+    }
+
+    function analyzeJD(text) {
+      jdNeedsManager = detectManager(text);
+      jdRequiredYears = detectYears(text);
+      jdRoleKeywords = extractRoleKeywords(text);
+      jdKeywords = extractKeywords(text);
+
+      document.getElementById("jobRole").innerText =
+        jdRoleKeywords.length > 0 ? jdRoleKeywords.slice(0, 3).join(" / ") : "未明確偵測";
+
+      document.getElementById("yearReq").innerText =
+        jdRequiredYears > 0 ? jdRequiredYears + " 年以上" : "未明確要求";
+
+      document.getElementById("managerReq").innerText =
+        jdNeedsManager ? "是" : "否";
+
+      const keywordTags = document.getElementById("keywordTags");
+      keywordTags.innerHTML = "";
+
+      jdKeywords.forEach(keyword => {
+        const span = document.createElement("span");
+        span.className = "tag";
+        span.innerText = keyword;
+        keywordTags.appendChild(span);
+      });
+
+      if (jdKeywords.length === 0) {
+        keywordTags.innerHTML = '<span class="small">未偵測到明確關鍵字</span>';
+      }
+    }
+
+    function extractKeywords(text) {
+      const lowerText = text.toLowerCase();
+      const matched = [];
+
+      allPossibleKeywords.forEach(keyword => {
+        if (lowerText.includes(keyword.toLowerCase())) {
+          matched.push(keyword);
+        }
+      });
+
+      return [...new Set(matched)].slice(0, 20);
+    }
+
+    function extractRoleKeywords(text) {
+      const lowerText = text.toLowerCase();
+      return roleWords.filter(word => lowerText.includes(word.toLowerCase()));
+    }
+
+    function detectManager(text) {
+      const lowerText = text.toLowerCase();
+      return managerWords.some(word => lowerText.includes(word.toLowerCase()));
+    }
+
+    function detectYears(text) {
+      const patterns = [
+        /(\d+)\s*年以上/g,
+        /(\d+)\s*年經驗/g,
+        /(\d+)\s*年工作經驗/g,
+        /至少\s*(\d+)\s*年/g,
+        /(\d+)\+\s*年/g
+      ];
+
+      let years = [];
+
+      patterns.forEach(pattern => {
+        const matches = [...text.matchAll(pattern)];
+        matches.forEach(match => {
+          years.push(Number(match[1]));
+        });
+      });
+
+      if (years.length === 0) return 0;
+      return Math.max(...years);
+    }
+
+    async function startRanking() {
+      if (!jdFile || !jdText) {
+        alert("請先上傳 JD。");
+        return;
+      }
+
+      if (resumeFiles.length === 0) {
+        alert("請先上傳履歷。");
+        return;
+      }
+
+      const tbody = document.getElementById("resultBody");
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="7" class="loading" style="text-align:center;">
+            正在讀取履歷內容並排序，請稍候...
+          </td>
+        </tr>
+      `;
+
+      const results = [];
+
+      for (const file of resumeFiles) {
+        try {
+          const text = await readFileText(file);
+          const result = analyzeResume(file.name, text);
+          results.push(result);
+        } catch (error) {
+          results.push({
+            name: file.name,
+            relevantRole: false,
+            years: 0,
+            hasManager: false,
+            matchedKeywords: [],
+            keywordMatch: 0,
+            level: "F",
+            score: -1,
+            error: true
+          });
+        }
+      }
+
+      results.sort((a, b) => {
+        if (jdNeedsManager && a.hasManager !== b.hasManager) {
+          return b.hasManager - a.hasManager;
+        }
+
+        if (a.level !== b.level) {
+          return levelToNumber(a.level) - levelToNumber(b.level);
+        }
+
+        return b.score - a.score;
+      });
+
+      renderResults(results);
+    }
+
+    function analyzeResume(fileName, text) {
+      const lowerText = text.toLowerCase();
+
+      const matchedKeywords = jdKeywords.filter(keyword =>
+        lowerText.includes(keyword.toLowerCase())
+      );
+
+      const keywordMatch = matchedKeywords.length;
+      const hasManager = detectManager(text);
+      const years = detectYears(text);
+      const relevantRole = detectRelevantRole(text);
+
+      let level = "F";
+      let score = 0;
+
+      if (relevantRole && jdRequiredYears > 0 && years >= jdRequiredYears) {
+        level = "A";
+        score += 100;
+      } else if (relevantRole && jdRequiredYears === 0) {
+        level = "A";
+        score += 90;
+      } else if (keywordMatch >= 5) {
+        level = "B";
+        score += 80;
+      } else if (keywordMatch === 4) {
+        level = "C";
+        score += 60;
+      } else if (keywordMatch >= 2) {
+        level = "D";
+        score += 40;
+      } else if (keywordMatch === 1) {
+        level = "E";
+        score += 20;
+      } else {
+        level = "F";
+      }
+
+      if (hasManager) score += 30;
+      if (relevantRole) score += 25;
+      score += keywordMatch * 10;
+      score += years * 3;
+
+      return {
+        name: fileName,
+        relevantRole,
+        years,
+        hasManager,
+        matchedKeywords,
+        keywordMatch,
+        level,
+        score,
+        error: false
+      };
+    }
+
+    function detectRelevantRole(text) {
+      const lowerText = text.toLowerCase();
+
+      if (jdRoleKeywords.length > 0) {
+        return jdRoleKeywords.some(role =>
+          lowerText.includes(role.toLowerCase())
+        );
+      }
+
+      return roleWords.some(role =>
+        lowerText.includes(role.toLowerCase())
+      );
+    }
+
+    function levelToNumber(level) {
+      const map = {
+        A: 1,
+        B: 2,
+        C: 3,
+        D: 4,
+        E: 5,
+        F: 6
+      };
+
+      return map[level] || 99;
+    }
+
+    function renderResults(results) {
+      const tbody = document.getElementById("resultBody");
+      tbody.innerHTML = "";
+
+      results.forEach((item, index) => {
+        const tr = document.createElement("tr");
+
+        if (item.error) {
+          tr.innerHTML = `
+            <td class="rank">${index + 1}</td>
+            <td>${item.name}</td>
+            <td colspan="5" class="no">檔案讀取失敗，請確認格式是否為 PDF / DOCX / TXT</td>
+          `;
+        } else {
+          tr.innerHTML = `
+            <td class="rank">${index + 1}</td>
+            <td>${item.name}</td>
+            <td>${item.relevantRole ? "相關職位" : "未明確相關"} / ${item.years || 0} 年</td>
+            <td class="${item.hasManager ? "yes" : "no"}">${item.hasManager ? "有" : "無"}</td>
+            <td>${item.keywordMatch} 個</td>
+            <td><span class="level level-${item.level.toLowerCase()}">${item.level}</span></td>
+            <td>${item.matchedKeywords.length > 0 ? item.matchedKeywords.join("、") : "無"}</td>
+          `;
+        }
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    function resetJD() {
+      jdFile = null;
+      jdText = "";
+      jdKeywords = [];
+      jdNeedsManager = false;
+      jdRequiredYears = 0;
+      jdRoleKeywords = [];
+      jdInput.value = "";
+
+      document.getElementById("jdFileName").innerText = "尚未上傳 JD";
+      document.getElementById("jobRole").innerText = "尚未分析";
+      document.getElementById("yearReq").innerText = "尚未分析";
+      document.getElementById("managerReq").innerText = "尚未分析";
+      document.getElementById("keywordTags").innerHTML = "";
+
+      document.getElementById("resultBody").innerHTML =
+        `<tr><td colspan="7" style="text-align:center;color:#64748b;">尚未產生排序結果</td></tr>`;
+    }
+
+    function clearResumes() {
+      resumeFiles = [];
+      resumeInput.value = "";
+      document.getElementById("resumeCount").innerText = "0";
+      document.getElementById("resultBody").innerHTML =
+        `<tr><td colspan="7" style="text-align:center;color:#64748b;">尚未產生排序結果</td></tr>`;
+    }
+
+    function setLoading(message) {
+      document.getElementById("keywordTags").innerHTML =
+        `<span class="loading">${message}</span>`;
+    }
+
+    function showHelp() {
+      alert(
+        "使用方式：\\n\\n" +
+        "1. 左邊上傳 1 份 JD。\\n" +
+        "2. 右邊上傳最多 50 份履歷。\\n" +
+        "3. 點擊「開始讀取與排序」。\\n" +
+        "4. 系統會讀取 PDF / DOCX / TXT 內容。\\n" +
+        "5. 系統依照職位、年資、關鍵字與管理經驗排序。\\n\\n" +
+        "注意：不支援舊版 .doc，請轉成 .docx 或 PDF。"
+      );
+    }
+  </script>
 </body>
 </html>
